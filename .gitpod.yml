@@ -9,3 +9,6 @@ tasks:
   - name: Run MongoDB 
     init: mkdir -p /workspace/data
     command: mongod --dbpath /workspace/data
+vscode:
+  extensions:
+    - mongodb.mongodb-vscode
