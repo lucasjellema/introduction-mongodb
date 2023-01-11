@@ -21,10 +21,15 @@ Check the docs: [MongoDB for VS Code - Connect to Your MongoDB Deployment](https
 Check the docs: [Navigate Your Data](https://www.mongodb.com/docs/mongodb-vscode/databases-collections/)
 
 # Gitpod Environment definition
-Brief the definition of this Gitpod environment:
+In brief the definition of this Gitpod environment:
 
-* based on image gitpod/workspace-mongodb (in .gitpod.yml: `image: gitpod/workspace-mongodb`); check out this image at (Dockefile for Gitpod MongoDB image)[https://github.com/gitpod-io/workspace-images/tree/main/chunks/tool-mongodb]
+* MongoDB 5.0.2 on Ubuntu 20.4
+* VS Code with MongoDB extension
+* mongosh CLI (read more at [MongoDB Shell (mongosh)](https://www.mongodb.com/docs/mongodb-shell/))
+
+Created through:
+* based on image gitpod/workspace-mongodb (in .gitpod.yml: `image: gitpod/workspace-mongodb`); check out this image at (Dockefile for Gitpod MongoDB image)[https://github.com/gitpod-io/workspace-images/tree/main/chunks/tool-mongodb] (this comes with MongoDB installed)
 * create data directory within /workspace on first startup (in .gitpod.yml: Task Run MongoDB `init: mkdir -p /workspace/data`) 
-* run MnogoDB service on every startup of the workspace (in .gitpod.yml: Task Run MongoDB `command: mongod --dbpath /workspace/data`)
+* run MongoDB service on every startup of the workspace (in .gitpod.yml: Task Run MongoDB `command: mongod --dbpath /workspace/data`)
 * install mongosh cli for Mongo on first startup of workspace (in .gitpod.yml: Install mongosh `command: | ... `)
 * install MongoDB extension for VS Code (in .gitpod.yml: `vscode extensions :  mongodb.mongodb-vscode `)
