@@ -1,0 +1,622 @@
+-- import the HR records into the local MongoDB server (database hr and collections emp and dept)
+-- note: the data is based on EMP and DEPT tables in SCOTT sample schema that used to be popular with Oracle Database 
+
+mongoimport --host 127.0.0.1:27017 --db hr --collection emp --drop --file export_emp.csv  --type csv --fieldFile empFields.txt
+mongoimport --host 127.0.0.1:27017 --db hr --collection dept --drop --file export_dept.csv  --type csv --fieldFile deptFields.txt
+
+"C:\Program Files\MongoDB\Server\3.4\bin\mongoimport" --host 127.0.0.1:27017 --db hr --collection dept --drop --file export_dept.csv  --type csv --fieldFile deptFields.txt
+"C:\Program Files\MongoDB\Server\3.4\bin\mongoimport" --host 127.0.0.1:27017 --db hr --collection emp --drop --file export_emp.csv  --type csv --fieldFile empFields.txt
+
+-- run the mongodb shell
+
+use hr
+
+show collections
+
+db.emp.stats()
+
+-- find inspiration for queries at https://www.scribd.com/doc/24313549/Oracle-SQL-Queries-on-Emp-Table-1-to-235 
+
+db.dept.find({},{deptno:1,dname:1,loc:1, _id:0})
+db.emp.find({},{EMPNO:1,ENAME:1,JOB:1,MGR:1,HIREDATE:1,SAL:1,COMM:1,DEPTNO:1, _id:0})
+
+
+-- find the names of all managers
+db.emp.find({"JOB":"MANAGER"},{ENAME:1})
+
+-- find all salesmen, listed by salary descending
+db.emp.find({"JOB":"SALESMAN"},{ENAME:1, SAL:1}).sort({'SAL':-1}) 
+
+-- find all salesmen, listed by salary descending; only top 2
+db.emp.find({"JOB":"SALESMAN"},{ENAME:1, SAL:1}).sort({'SAL':-1}).limit(2)
+
+-- find all employees with AR in their name, sorted by name
+db.emp.find({"ENAME":{$regex: "AR"} },{ENAME:1, SAL:1}).sort({'ENAME':1})
+
+-- find all employees who are not in department 10, with their name and salary and sorted alphabetically by name
+db.emp.find({"DEPTNO":{$ne: 10} },{ENAME:1, SAL:1, DEPTNO:1}).sort({'ENAME':1})
+
+-- add a Date style property for hiredate
+-- https://docs.mongodb.com/manual/reference/method/Date/, 
+-- new Date("<YYYY-mm-dd>")
+-- update documents based on values in document themselves
+
+  db.emp.find().forEach(
+      function (elem) {
+        elem.startdate = new Date( "19"+ elem.HIREDATE.substring(6)
+                       + "-" + elem.HIREDATE.substring(3,5)
+                       + "-" + elem.HIREDATE.substring(0,2) 
+                       );
+        // don't forget to save the updated document
+        db.emp.save(elem);
+      }
+    )
+
+-- at this point, emp collection has documents with a startdate property that is a real Date() and not a string that looks like a date.
+-- throw out the HIREDATE property
+
+db.emp.update({}, { $unset: {HIREDATE : ""} })
+
+
+-- list everyone hired after January 1st 1983
+db.emp.find(
+{"startdate" :{$gt: new Date('1983-01-01') }}
+)
+
+-- list everyone hired in 1983 or later
+db.emp.find(
+{"startdate" :{$gt: new Date('1983') }}
+)
+
+
+-- use $where for JavaScript evaluations 
+-- find Salesmen with a total income higher than 2000
+db.emp.find( {"JOB":"SALESMAN" , $where : " this.SAL + (this.COMM != null? this.COMM: 0) > 2000"})
+
+
+-- create stored function
+db.system.js.save({ 
+   "_id": "salaryCap", 
+   "value": function(job) { return job=='CLERK'?1000
+                                       :(job=='ANALYST'?3500
+                                             :(job=='SALESMAN'?2000
+                                                   :(job=='MANAGER'?3000
+                                                         :10000)
+                                              )
+                                        )
+                            ;
+                          } 
+})
+
+-- load function in current database
+db.loadServerScripts();
+
+db.emp.find( { $where : " this.SAL > salaryCap(this.JOB)"}, {ENAME:1, SAL:1, JOB:1})
+
+
+
+-- using the aggregate framework we can use date and time operators like this https://smyl.es/how-to-use-mongodb-date-aggregation-operators-in-node-js-with-mongoose-dayofmonth-dayofyear-dayofweek-etc/ 
+
+db.emp.aggregate(
+ [ 
+  {$project: {
+        "ENAME": 1,
+        "startmonth": { $month: "$startdate"},
+        "startyear": { $year: "$startdate"}
+    }
+  }
+]
+)
+
+
+
+
+-- some aggregates
+-- total salary sum, total number of employees, the highest salary and the earliest startdate
+db.emp.aggregate(
+[{
+     $group: {
+        _id: null,
+          total_salary_sum: { $sum: "$SAL" }
+        , total_staff_count: { $sum: 1 }
+        , max_sal: { $max: "$SAL" }
+        , min_startdate: { $min: "$startdate" }
+     }
+   }
+]
+)
+
+-- by department
+db.emp.aggregate(
+[{
+     $group: {
+        _id: "$DEPTNO",
+          total_salary_sum: { $sum: "$SAL" }
+        , total_staff_count: { $sum: 1 }
+        , max_sal: { $max: "$SAL" }
+        , min_startdate: { $min: "$startdate" }
+     }
+   }
+]
+)
+
+-- by department and hireyear
+db.emp.aggregate(
+[{
+     $group: {
+        _id: { deptno: "$DEPTNO", hireyear : {  $year: "$startdate"} },
+          total_salary_sum: { $sum: "$SAL" }
+        , total_staff_count: { $sum: 1 }
+        , max_sal: { $max: "$SAL" }
+        , min_startdate: { $min: "$startdate" }
+     }
+   }
+]
+)
+
+
+-- by department and hireyear
+-- having more than one staff
+db.emp.aggregate(
+[{
+     $group: {
+        _id: { deptno: "$DEPTNO", hireyear : {  $year: "$startdate"} },
+          total_salary_sum: { $sum: "$SAL" }
+        , total_staff_count: { $sum: 1 }
+        , max_sal: { $max: "$SAL" }
+        , min_startdate: { $min: "$startdate" }
+     }
+   }
+,   { $match: { total_staff_count: { $gt: 1 } } }
+]
+)
+
+
+-- list all employees (empno and ename) along with the looked up department
+
+db.emp.aggregate(
+[  {$lookup:
+      {
+         from:"dept",
+         localField:"DEPTNO",
+         foreignField:"deptno",
+         as:"dept"
+     }
+   }  
+, {$project: {
+        "EMPNO": 1,
+        "ENAME": 1,
+        "DEPT": { $arrayElemAt:["$dept", 0]},
+      }
+    }
+]
+)
+
+-- list all departments with the list of their employees (name only)
+db.dept.aggregate(
+[  {$lookup:
+      {
+         from:"emp",
+         localField:"deptno",
+         foreignField:"DEPTNO",
+         as:"emps"
+     }
+   }  
+, {$project: {
+        "deptno": 1,
+        "dname": 1,
+        "staff": { $reduce: {
+                            input: "$emps",
+                            initialValue: "",
+                            in: { $concat : ["$$value", ", ","$$this.ENAME"] }
+                           }
+                 },
+    }
+  }
+]
+)
+
+
+
+-- all employees who work in NEW YORK (after adding DEPT through lookup to each EMP)
+db.emp.aggregate(
+[  {$lookup:
+      {
+         from:"dept",
+         localField:"DEPTNO",
+         foreignField:"deptno",
+         as:"dept"
+     }
+   }  
+, {$project: {
+        "EMPNO": 1,
+        "ENAME": 1,
+        "DEPT": { $arrayElemAt:["$dept", 0]},
+      }
+    }
+, {$match: {  "DEPT.loc" :"NEW YORK"} }
+]
+)
+
+
+
+-- all employees who work (directly) for KING
+
+db.emp.aggregate(
+[ 
+ {$match: { ENAME: "KING"}}
+, {$lookup:
+      {
+         from:"emp",
+         localField:"EMPNO",
+         foreignField:"MGR",
+         as:"subordinates"
+     }
+   }  
+, {$project: {
+        "EMPNO": 1,
+        "ENAME": 1,
+        "subordinates": 1,
+        // "firstStaff": { $arrayElemAt:["$staff", 0]},
+        "staff": { $reduce: {
+                            input: "$subordinates",
+                            initialValue: "",
+                            in: { $concat : ["$$value", ", ","$$this.ENAME"] }
+                           }
+                 },
+      }
+    }
+]
+)
+
+
+-- in aggregations, we can make use of $facet.
+-- here we use the facet operator to analyze our employees along several dimensions:  
+-- JOB, SAL, DEPTNO and startdate
+
+db.emp.aggregate( [
+  {
+    $facet: {
+      "categorizedByJob": [
+        { $sortByCount: "$JOB" }
+      ],
+     "categorizedBySalary": [
+        {
+          $bucket: {
+            groupBy: "$SAL",
+            boundaries: [0, 1000, 2000 ,3000 ,10000 ],
+            default: "Other",
+            output: {
+              "count": { $sum: 1 },
+              "employees": { $push: "$ENAME" }
+            }
+          }
+        }
+      ],
+      "categorizedByDepartment": [
+        { $sortByCount: "$DEPTNO" }
+      ],
+      "categorizedByHiredate(Auto)": [
+        {
+          $bucketAuto: {
+            groupBy: "$startdate",
+            buckets: 4
+          }
+        }
+      ]
+    }
+  }
+])
+
+
+
+
+-- create new collection (similar to materialized view) from query
+-- consisting of complex documents with department with array of nested employees
+db.dept.aggregate(
+[  {$lookup:
+      {
+         from:"emp",
+         localField:"deptno",
+         foreignField:"DEPTNO",
+         as:"emps"
+     }
+   }  
+, {$out: "departments" 
+  }
+]
+)
+
+-- inspect documents in departments
+db.departments.find()
+
+-- find department that contains employee named KING
+db.departments.find( {"emps.ENAME":"KING"})
+
+-- now to only find KING (and not all employees in the department)
+db.departments.aggregate(
+[
+  {$unwind: {path:"$emps"}}  
+, {$match: { "emps.ENAME": "KING"}}
+, {$project: {
+        "EMPNO": "$emps.EMPNO",
+        "JOB": "$emps.JOB",
+        "ENAME": "$emps.ENAME",
+        "STARTDATE": "$emps.startdate",
+        "DNAME": 1
+    }
+   }
+]
+)
+
+
+-- find the names of all managers (in the complex documents with DEPT master and EMP details)
+db.departments.aggregate(
+[
+  {$unwind: {path:"$emps"}}  
+, {$match: { "emps.JOB": "MANAGER"}}
+, {$project: {
+        "ENAME": "$emps.ENAME",
+    }
+   }
+]
+)
+
+-- find all employees who are not in department 10, with their name and salary and sorted alphabetically by name
+db.departments.aggregate(
+[
+   {$match: { "DEPTNO": {$ne:10}}}
+ , {$unwind: {path:"$emps"}}  
+ , {$project: {
+        "ENAME": "$emps.ENAME",
+        "SAL": "$emps.SAL",
+        "DEPTNO": 1,
+    }
+   }
+ , {$sort : {"ENAME":1}}
+]
+)
+
+-- against the nested documents, perform aggegration
+-- total salary sum, total number of employees, the highest salary and the earliest startdate, per department
+
+db.departments.aggregate(
+[
+   {$unwind: {path:"$emps"}}  
+,  {$group:{ _id: '$deptno'
+           , total_salary_sum : {$sum: "$emps.SAL"}
+           , total_staff_count : {$sum: 1}
+           , max_sal : {$max: "$emps.SAL"}
+           , min_startdate : {$min: "$emps.startdate"}
+           }
+   }
+]
+)
+
+-- add geospatial data for departments (longitude, lattitude)
+db.dept.findAndModify({
+    query: { loc: "NEW YORK" },
+    update: { $set: { "location" : {
+                         "type" : "Point",
+                         "coordinates" : [ -73.935242, 40.730610 ]                         
+                         } 
+             } },
+    upsert: true
+})
+
+db.dept.findAndModify({
+    query: { loc: "DALLAS" },
+    update: { $set: { "location" : {
+                         "type" : "Point",
+                         "coordinates" : [ -96.8005, 32.7801 ]                         
+                         } 
+             } },
+    upsert: true
+})
+
+db.dept.findAndModify({
+    query: { loc: "BOSTON" },
+    update: { $set: { "location" : {
+                         "type" : "Point",
+                         "coordinates" : [ -71.0598, 42.3584 ]                         
+                         } 
+             } },
+    upsert: true
+})
+
+db.dept.findAndModify({
+    query: { loc: "CHICAGO" },
+    update: { $set: { "location" : {
+                         "type" : "Point",
+                         "coordinates" : [ -87.6298, 41.8781 ]                         
+                         } 
+             } },
+    upsert: true
+})
+
+
+-- create index 
+db.dept.ensureIndex( { location : "2dsphere" } );
+
+-- find departments within 500 km from Washington DC ( [ -77.0364, 38.8951 ])
+-- NOTE: the $near operator requires an index.
+db.dept.find(
+  {
+    location : {
+      $near : {
+        $geometry : { 
+          type : "Point" , 
+          coordinates : [ -77.0364, 38.8951 ] 
+        }, 
+        $maxDistance : 500000
+      }
+    }
+  }
+ )   
+
+-- to also get the distance from Washington DC to the department(s), use aggregation with $geoNear
+-- we find all points within 500000 meter from Washington DC and get the distance for each department in the property distanceFromTarget, in km (because of the distanceMultiplier that converts from meter to kilometer)
+db.dept.aggregate([
+    { "$geoNear": {
+        "near": {
+            "type": "Point",
+            "coordinates": [ -77.0364, 38.8951 ] 
+        }, 
+        "maxDistance": 500000,
+        "spherical": true,
+        "distanceField": "distanceFromTarget",     
+        "distanceMultiplier": 0.001
+     }}
+]).pretty()
+
+-- to list all departments, ordered by their distance from Washington DC 
+db.dept.aggregate([
+    { "$geoNear": {
+        "near": {
+            "type": "Point",
+            "coordinates": [ -77.0364, 38.8951 ] 
+        }, 
+        "spherical": true,
+        "distanceField": "distanceFromTarget",     
+        "distanceMultiplier": 0.001
+     }}
+ , {$sort : {"distanceFromTarget":1}}
+,  {$project: {
+        _id: 0,
+        dname: 1,
+        loc: 1,
+        "distance from Washington DC": { $trunc : "$distanceFromTarget"},
+    }
+   }
+])
+
+-- text search
+db.emp.findAndModify({
+    query: { ENAME: "KING" },
+    update: { $set: { "bio" : "Gerald Ford was born on July 14, 1913, in Omaha, Nebraska, as Leslie Lynch King Jr. In just weeks, he was whisked away by his mother, Dorothy Ayer Gardner, to her parents' home in Grand Rapids, Michigan. A plucky woman who would not tolerate abuse, she divorced his father, Leslie Lynch King Sr., within the year, and less than three years later, was married to Gerald Rudolff Ford, a local paint company salesman, from whence Jerry Jr. got his name—although it was not made legal until he was 22 years old. A star college football player, he served in the Navy during WWII. Elected to the House of Representatives in 1948, Ford represented Michigan's 5th District for nearly 25 years before suddenly finding himself at the crossroads of history. He was elevated to vice president, and then became the 38th U.S. president due to Richard Nixon's involvement in the Watergate scandal and subsequent resignation. Ford was defeated by Jimmy Carter in the 1976 election. He died in California in 2006." }
+            },
+    upsert: true
+})
+
+
+db.emp.findAndModify({
+    query: { ENAME: "BLAKE" },
+    update: { $set: { "bio" : "Jamaican sprinter Yohan Blake holds the world record for the 4-by-100-meter relay. In 2012, he won a silver medal in both the 100-meter and 200-meter races, losing to rival and fellow Jamaican Usain Bolt in both events. Famed sprinter Yohan Blake, nicknamed 'The Beast' by fans, was born on December 26, 1989 in St. James, Jamaica. Blake began running competitively in the 100 and 200 meters at a young age. In 2009, he tested positive for methylaxanthine at the Jamaican Championships, and was banned for three months. He has since won various honors, including two gold medals at the 2011 World Championships, in the 100 and the 4-by-100-meter relay. Blake holds the record in the 4-by-100-meter relay and the national junior record in the 100. His best time in the 100 is 9.75 seconds. At the 2012 Summer Olympics, he won a silver medal in the 100 meters with a time of 9.75 seconds, just shy of his rival Usain Bolt's 9.63 seconds. Similarly, in the 200-meter race, Blake finished second to Bolt, taking the silver." }
+            },
+    upsert: true
+})
+
+
+
+db.emp.findAndModify({
+    query: { ENAME: "FORD" },
+    update: { $set: { "bio" : "Harrison Ford is one of Hollywood's leading men, with an acting career that has spanned nearly 40 years and included iconic roles such as Indiana Jones and Han Solo." }
+            },
+    upsert: true
+})
+
+db.emp.findAndModify({
+    query: { ENAME: "JONES" },
+    update: { $set: { "bio" : "Tom Jones is a Welsh rock, pop and soul singing legend best known as an international hit maker over the last five decades. His popular singles include \"It's Not Unusual,\" \"Green Green Grass of Home,\" \"Delilah,\" \"Till\" and \"A Boy From Nowhere.\"" }
+            },
+    upsert: true
+})
+
+
+
+db.emp.findAndModify({
+    query: { ENAME: "ADAMS" },
+    update: { $set: { "bio" : "American Founding Father Samuel Adams helped organize the Boston Tea Party and signed the U.S. Declaration of Independence. Samuel Adams was born on September 27, 1722, in Boston, Massachusetts. A strong opponent of British taxation, Adams helped formulate resistance to the Stamp Act and played a vital role in organizing the Boston Tea Party. He was a second cousin of U.S. President John Adams, with whom he urged a final break from Great Britain, and a signee of the U.S. Declaration of Independence. Adams died on October 2, 1803, in Boston." }
+            },
+    upsert: true
+})
+
+db.emp.findAndModify({
+    query: { ENAME: "JAMES" },
+    update: { $set: { "bio" : "King James IV unified Scotland under his rule, provided laws, advanced culture and learning and positioned the country as a major player in European politics. King of Scotland from 1488 to 1513, James IV unified the country under his rule through enforcement and political and cultural advancements. While Scotland had a tense relationship with England under King Henry VII, relations improved with James’s marriage to Henry’s daughter, Margaret Tudor. The tide reversed when James allied himself with England’s arch enemy, France, and went to war with Henry VIII. James was killed in the Battle of Flodden on September 9, 1513." }
+            },
+    upsert: true
+})
+
+db.emp.findAndModify({
+    query: { ENAME: "MILLER" },
+    update: { $set: { "bio" : "Bandleader Glenn Miller inspired the World War II generation and boosted morale with many popular songs. Born in 1904 in Iowa, bandleader and musician Glenn Miller inspired the World War II generation. He was one of the most popular bandleaders in the late 1930s and early 1940s with such songs as \"Moonlight Serenade\" and \"Tuxedo Junction.\" In 1942, Miller enlisted in the U.S. Army and was assigned to lead the Army Air Force Band. He boosted the morale of the troops with his many popular songs before mysteriously disappearing on a flight from England to Paris, France. Miller's original recordings continue to sell millions of copies. He died on December 15, 1944." }
+            },
+    upsert: true
+})
+
+
+-- create text index 
+
+db.emp.createIndex(
+{ ENAME:'text', 
+  JOB:'text',
+  BIO:'text',
+}
+,{  weights: { ENAME:10, JOB:5, bio:1}
+  , name: 'employee_text_index'  
+}
+)
+
+
+-- search using text index
+
+-- which employees are found when looking for someone to lead? And what about acting? or managing?
+db.emp.find({$text: {$search: 'lead'}},{ENAME:1})
+
+-- which employees are found for the search string Ford? (one is obvious, the other less so)
+-- (note: when looking for fording or forded or fords, the same results are retrieved, thanks to stemming) 
+db.emp.find({$text: {$search: 'ford'}},{ENAME:1})
+
+
+-- text search scores
+
+db.emp.aggregate(
+     [
+         { $match: { $text: { $search: 'managing' } } },
+         { $project: {_id:0,ENAME: 1, score: { $meta: 'textScore' } } },
+         { $sort: {score:-1} }
+     ]
+ )
+
+ db.emp.aggregate(
+     [
+         { $match: { $text: { $search: 'king' } } },
+         { $project: {_id:0,ENAME: 1, score: { $meta: 'textScore' } } },
+         { $sort: {score:-1} }
+     ]
+ )
+
+-- check out how much more than scores than the other when looking at the text scores 
+ db.emp.aggregate(
+     [
+         { $match: { $text: { $search: 'forded' } } },
+         { $project: {_id:0,ENAME: 1, score: { $meta: 'textScore' } } },
+         { $sort: {score:-1} }
+     ]
+ )
+ 
+
+
+
+ -- bonus
+
+ use hr
+
+-- create stored function
+
+db.system.js.save({ 
+   "_id": "squareThis", 
+   "value": function(a) { return a*a } 
+})
+
+-- load function in current database
+
+db.loadServerScripts();
+
+-- invoke function in the shell
+
+squareThis(10);
+
+-- note: functions can be invoked in $where and $mapReduce
+-- not in aggregate and find

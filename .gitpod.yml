@@ -9,6 +9,11 @@ tasks:
   - name: Run MongoDB 
     init: mkdir -p /workspace/data
     command: mongod --dbpath /workspace/data
+ports:
+  # MongoDB's port
+  - port: 27017
+    onOpen: notify
+    visibility: public    
 vscode:
   extensions:
     - mongodb.mongodb-vscode

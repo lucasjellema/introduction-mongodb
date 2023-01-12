@@ -33,3 +33,4 @@ Created through:
 * run MongoDB service on every startup of the workspace (in .gitpod.yml: Task Run MongoDB `command: mongod --dbpath /workspace/data`)
 * install mongosh cli for Mongo on first startup of workspace (in .gitpod.yml: Install mongosh `command: | ... `)
 * install MongoDB extension for VS Code (in .gitpod.yml: `vscode extensions :  mongodb.mongodb-vscode `)
+* port 27017 is the port on which the MongoDB service is listening; this port is opened
