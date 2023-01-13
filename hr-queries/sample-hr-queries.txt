@@ -270,46 +270,6 @@ db.emp.aggregate(
 )
 
 
--- in aggregations, we can make use of $facet.
--- here we use the facet operator to analyze our employees along several dimensions:  
--- JOB, SAL, DEPTNO and startdate
-
-db.emp.aggregate( [
-  {
-    $facet: {
-      "categorizedByJob": [
-        { $sortByCount: "$JOB" }
-      ],
-     "categorizedBySalary": [
-        {
-          $bucket: {
-            groupBy: "$SAL",
-            boundaries: [0, 1000, 2000 ,3000 ,10000 ],
-            default: "Other",
-            output: {
-              "count": { $sum: 1 },
-              "employees": { $push: "$ENAME" }
-            }
-          }
-        }
-      ],
-      "categorizedByDepartment": [
-        { $sortByCount: "$DEPTNO" }
-      ],
-      "categorizedByHiredate(Auto)": [
-        {
-          $bucketAuto: {
-            groupBy: "$startdate",
-            buckets: 4
-          }
-        }
-      ]
-    }
-  }
-])
-
-
-
 
 -- create new collection (similar to materialized view) from query
 -- consisting of complex documents with department with array of nested employees
