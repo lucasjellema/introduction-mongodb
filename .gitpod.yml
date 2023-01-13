@@ -9,6 +9,9 @@ tasks:
   - name: Run MongoDB 
     init: mkdir -p /workspace/data
     command: mongod --dbpath /workspace/data
+  - name: Install MongoDB Database Tools
+    init: |
+      sudo apt-get install mongo-tools
 ports:
   # MongoDB's port
   - port: 27017
