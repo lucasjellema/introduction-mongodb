@@ -617,9 +617,20 @@ Note: Check the Ports tab in your local VS Code; it could be that the local port
 
 ### First steps with Compass
 
-Connect
+Create a connection to the remote MongoDB instance in the Gitpod workspace. Use the port shown in the locasl VS Code Ports tab. In this example, the port is 27018. 
 
+![](images/connect-compass.png)  
 
-List databases
-List collections
-Show documents
+Check the databases in the connected instance:
+
+![](images/compass-list-dbs.png)  
+
+Inspect the emp collection:
+![](images/compass-check-emp.png)  
+
+And try to perform some queries.
+
+Here a somewhat complex example, with a pipeline and three stages to lookup, project and match:
+
+![](images/compass-multistagepipeline.png)  
+
