@@ -11,7 +11,7 @@ tasks:
     command: mongod --dbpath /workspace/data
   - name: Install MongoDB Database Tools
     init: |
-      sudo apt-get install mongo-tools
+      sudo apt-get install -y mongo-tools 
   - name: Open Workshop instruction document 
     command: gp open mongodb-tutorial.md
 ports:
