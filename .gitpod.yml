@@ -12,6 +12,8 @@ tasks:
   - name: Install MongoDB Database Tools
     init: |
       sudo apt-get install mongo-tools
+  - name: Open Workshop instruction document 
+    command: gp open mongodb-tutorial.md
 ports:
   # MongoDB's port
   - port: 27017
