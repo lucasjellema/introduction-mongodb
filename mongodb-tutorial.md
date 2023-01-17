@@ -607,16 +607,19 @@ Please comply and provide as requested.
 
 You can now work locally against the CDE (Cloud Development Environment) - the cloud based Gitpod workspace environment. Try to type in the local editor and quickly check the browser based editor - and vice versa. Be really quick! They seem pretty well synchronized.
 
-The MongoDB port (27017) that is opened in the workspace is forwarded. This means that when you access  `localhost:27017` on your laptop, the requests are forwarded correctly over the SSH connection to the Gitpod workspace environment, ending up on the MongoDB instance running in the workspace.
+The MongoDB port (27017) that is opened in the workspace is forwarded. This means that when you access `localhost:27017` on your laptop, the requests are forwarded correctly over the SSH connection to the Gitpod workspace environment, ending up on the MongoDB instance running in the workspace.
 
 This figure shows the port-forwarding configuration in your local VS Code
 
 ![](images/port-forwarding-mongodbport.png)  
 
+Note: Check the Ports tab in your local VS Code; it could be that the local port is not the same as the port on the Gitpod workspace; I have seen local port 27018 forwarded to remote port 27017 for example. If that is the case for you as well, then you have to connect Compass at `localhost:27018`.
 
 ### First steps with Compass
 
 Connect
+
+
 List databases
 List collections
 Show documents
